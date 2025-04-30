@@ -34,7 +34,7 @@ jobs:
         id: changed-projects
         run: |
           # 获取更改的文件列表并提取涉及Cargo.toml的子目录
-          CHANGED_DIRS=$(git diff --name-only HEAD^ HEAD | grep -E '^abc/[^/]+/Cargo.toml$' | sed 's|/Cargo.toml$||' | sort -u)
+          CHANGED_DIRS=$(git diff --name-only HEAD^ HEAD | grep -E '^MySmartPointer/[^/]+/Cargo.toml$' | sed 's|/Cargo.toml$||' | sort -u)
           
           # 如果没有更改的Cargo项目，设置空列表
           if [ -z "$CHANGED_DIRS" ]; then
