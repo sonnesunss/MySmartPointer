@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0 # 获取完整历史以确保捕获新建项目
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -30,42 +30,64 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Find changed Cargo projects
+      - name: Debug git context
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Base Ref: ${{ github.base_ref }}"
+          git log --oneline -n 2
+          git status
+
+      - name: Find changed or new Cargo projects
         id: changed-projects
         run: |
-          # 获取更改的文件列表并提取涉及Cargo.toml的子目录
-          CHANGED_DIRS=$(git diff --name-only HEAD^ HEAD | grep -E '^MySmartPointer/[^/]+/Cargo.toml$' | sed 's|/Cargo.toml$||' | sort -u)
+          # 确定比较的基准
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # 对于 push，比较 HEAD^ 和 HEAD
+            CHANGED_FILES=$(git diff --name-only HEAD^ HEAD || echo "")
+          else
+            # 对于 PR，比较 base_ref 和当前 HEAD
+            git fetch origin ${{ github.base_ref }} || echo "Failed to fetch base_ref"
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD || echo "")
+          fi
           
-          # 如果没有更改的Cargo项目，设置空列表
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # 提取 abc 下子目录中涉及 Cargo.toml 的更改（包括新建）
+          CHANGED_DIRS=$(echo "$CHANGED_FILES" | grep -i '^MySmartPointer/[^/]\+/Cargo.toml$' | sed 's|/Cargo.toml$||' | sort -u)
+          
+          # 检查结果并输出
           if [ -z "$CHANGED_DIRS" ]; then
-            echo "No Cargo projects changed."
+            echo "No Cargo projects changed or added."
             echo "changed_dirs=" >> $GITHUB_OUTPUT
           else
-            echo "Changed Cargo projects: $CHANGED_DIRS"
+            echo "Changed or new Cargo projects: $CHANGED_DIRS"
             echo "changed_dirs=$CHANGED_DIRS" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build changed projects
+      - name: Build changed or new projects
         if: steps.changed-projects.outputs.changed_dirs != ''
         run: |
-          # 遍历更改的目录并运行 cargo build
+          # 遍历更改或新建的目录并运行 cargo build
           for dir in ${{ steps.changed-projects.outputs.changed_dirs }}; do
             if [ -f "$dir/Cargo.toml" ]; then
               echo "Building $dir"
-              cd "$dir" && cargo build --verbose && cd -
+              cd "$dir" && cargo build --verbose && cd - || exit 1
             else
               echo "Skipping $dir: No Cargo.toml found"
             fi
           done
 
-      - name: Test changed projects
+      - name: Test changed or new projects
         if: steps.changed-projects.outputs.changed_dirs != ''
         run: |
-          # 遍历更改的目录并运行 cargo test
+          # 遍历更改或新建的目录并运行 cargo test
           for dir in ${{ steps.changed-projects.outputs.changed_dirs }}; do
             if [ -f "$dir/Cargo.toml" ]; then
               echo "Testing $dir"
-              cd "$dir" && cargo test --verbose && cd -
+              cd "$dir" && cargo test --verbose && cd - || exit 1
             else
               echo "Skipping $dir: No Cargo.toml found"
             fi
