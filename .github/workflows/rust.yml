@@ -1,22 +1,61 @@
+
 name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # 获取当前和上一次提交，以便比较差异
+
+      - name: Find changed Cargo projects
+        id: changed-projects
+        run: |
+          # 获取更改的文件列表并提取涉及的目录
+          CHANGED_DIRS=$(git diff --name-only HEAD^ HEAD | grep -E '.*Cargo.toml$' | xargs -I {} dirname {} | sort -u)
+          
+          # 如果没有更改的Cargo项目，设置空列表
+          if [ -z "$CHANGED_DIRS" ]; then
+            echo "No Cargo projects changed."
+            echo "changed_dirs=" >> $GITHUB_OUTPUT
+          else
+            echo "Changed Cargo projects: $CHANGED_DIRS"
+            echo "changed_dirs=$CHANGED_DIRS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build changed projects
+        if: steps.changed-projects.outputs.changed_dirs != ''
+        run: |
+          # 遍历更改的目录并运行 cargo build
+          for dir in ${{ steps.changed-projects.outputs.changed_dirs }}; do
+            if [ -f "$dir/Cargo.toml" ]; then
+              echo "Building $dir"
+              cd "$dir" && cargo build --verbose && cd -
+            else
+              echo "Skipping $dir: No Cargo.toml found"
+            fi
+          done
+
+      - name: Test changed projects
+        if: steps.changed-projects.outputs.changed_dirs != ''
+        run: |
+          # 遍历更改的目录并运行 cargo test
+          for dir in ${{ steps.changed-projects.outputs.changed_dirs }}; do
+            if [ -f "$dir/Cargo.toml" ]; then
+              echo "Testing $dir"
+              cd "$dir" && cargo test --verbose && cd -
+            else
+              echo "Skipping $dir: No Cargo.toml found"
+            fi
+          done
