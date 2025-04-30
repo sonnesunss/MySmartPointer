@@ -56,7 +56,7 @@ jobs:
           echo "$CHANGED_FILES"
           
           # 提取 abc 下子目录中涉及 Cargo.toml 的更改（包括新建）
-          CHANGED_DIRS=$(echo "$CHANGED_FILES" | grep -i '^MySmartPointer/[^/]\+/Cargo.toml$' | sed 's|/Cargo.toml$||' | sort -u)
+          CHANGED_DIRS=$(echo "$CHANGED_FILES" | grep -i '^/[^/]\+/Cargo.toml$' | sed 's|/Cargo.toml$||' | sort -u)
           
           # 检查结果并输出
           if [ -z "$CHANGED_DIRS" ]; then
