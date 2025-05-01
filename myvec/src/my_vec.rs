@@ -85,6 +85,12 @@ impl<T> Drop for MyVec<T> {
         if !self.ptr.is_null() {
             unsafe {
                 for i in 0..self.len {
+                    // drop_in_place函数用于在指定内存地址上手动调用某个值的析构函数，
+                    // 而不移动或销毁内存本身
+                    // 对于POD类型没有必要，其他类型就需要否则可能引起内存泄露
+                    // 例如当T = String时，如果不在释放堆内存空间之前释放掉String类型占用的内存空间
+                    // 则那部分空间就会被泄露掉
+                    // 对于原始的POD类型则无需调用此函数
                     ptr::drop_in_place(self.ptr.add(i));
                 }
 
