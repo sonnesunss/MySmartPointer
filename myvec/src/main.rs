@@ -12,4 +12,5 @@ fn main() {
     v1.push(1);
 
     println!("{:?}", v1);
+    println!("{:?}", &*v1);
 }
